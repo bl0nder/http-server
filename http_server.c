@@ -17,36 +17,36 @@ char* err_loc;
 int server_socket_fd = -1;
 
 int create_server(int port, int backlog) {
-	
+    
     //Create socket 
-	int s = socket(AF_INET, SOCK_STREAM, 0);
-	if (s < 0) {
-		err_msg = strerror(errno);
+    int s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) {
+        err_msg = strerror(errno);
         err_loc = "Server socket:socket()";
-		return -1;
-	}
+        return -1;
+    }
 
-	// Creating server struct
-	struct sockaddr_in server;
-	server.sin_family = AF_INET;
-	server.sin_port = htons(port);
-	server.sin_addr.s_addr = inet_addr(LISTENING_ADDR);
-	
-	// Bind socket to server 
-	if (bind(s, (const struct sockaddr*) &server, sizeof(server)) < 0) {
+    // Creating server struct
+    struct sockaddr_in server;
+    server.sin_family = AF_INET;
+    server.sin_port = htons(port);
+    server.sin_addr.s_addr = inet_addr(LISTENING_ADDR);
+    
+    // Bind socket to server 
+    if (bind(s, (const struct sockaddr*) &server, sizeof(server)) < 0) {
         err_msg = strerror(errno);
-		err_loc = "Server socket:bind()";
-		return -1;	
-	}
-	
-	//Listens for connections
-	if (listen(s, backlog) < 0) {
+        err_loc = "Server socket:bind()";
+        return -1;  
+    }
+    
+    //Listens for connections
+    if (listen(s, backlog) < 0) {
         err_msg = strerror(errno);
-		err_loc = "Server socket:listen()";
-		return -1;
-	}
+        err_loc = "Server socket:listen()";
+        return -1;
+    }
 
-	return s;
+    return s;
 }
 
 void sigint_handler(int sig) {
@@ -62,24 +62,24 @@ void sigint_handler(int sig) {
 int main() {
     
     //Variables
-	int port = 1234;
+    int port = 1234;
     int backlog = 2;
     
     //Signal handler
     signal(SIGINT, sigint_handler);
 
-	server_socket_fd = create_server(port, backlog);
-	if (server_socket_fd < 0){
-		fprintf(stderr, "[!]%s in %s\n", err_msg, err_loc);	
+    server_socket_fd = create_server(port, backlog);
+    if (server_socket_fd < 0){
+        fprintf(stderr, "[!]%s in %s\n", err_msg, err_loc); 
         close(server_socket_fd);
-		return -1;
-	}
-	
-	printf("Listening on port %d...\n", port);
+        return -1;
+    }
+    
+    printf("Listening on port %d...\n", port);
 
     while(1) {
         //Put something here
     }
 
-	return 0;
+    return 0;
 }
