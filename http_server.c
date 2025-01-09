@@ -8,13 +8,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+#include "http_server.h"
 
 #define LISTENING_ADDR "127.0.0.1"
 
+//Global vars
 char* err_msg;
 char* err_loc;
 
-int server = -1;
+//Kept global to allow signal handler to close fds properly
+int server = -1; 
 int client = -1;
 
 void sigint_handler(int sig) {
@@ -25,9 +28,14 @@ void sigint_handler(int sig) {
         close(server);
         printf("[PID %d] Server socket has been closed.\n", curr_pid);
     }
+    if (client >= 0) {
+        close(client);
+        printf("[PID %d] Client socket has been closed.\n", curr_pid);
+    }
     exit(0);
 }
 
+//Returns server fd on success, -1 on failure
 int create_server(int port, int backlog) {  
     //Create socket 
     int s = socket(AF_INET, SOCK_STREAM, 0);
@@ -62,9 +70,12 @@ int create_server(int port, int backlog) {
     return s;
 }
 
+//Return client fd on success, -1 on failure
 int connect_to_client(int s) {
+   //Client struct
    struct sockaddr_in c_struct; 
    memset(&c_struct, 0, sizeof(c_struct));
+
    socklen_t addrlen = 0;
  
    int c = accept(s, (struct sockaddr*) &c_struct, &addrlen);
@@ -77,17 +88,63 @@ int connect_to_client(int s) {
    return c;
 }
 
-void handle_connection(int s, int c) {
-    sleep(3);    
-    return;
+//Returns pointer to struct for parsed HTTP request on success, NULL pointer on failure
+http_req_T* parse_request(char* req) {
+    http_req_T* parsed_req;
+    parsed_req = malloc(sizeof(http_req_T));
+    memset(parsed_req, 0, sizeof(http_req_T)); 
+
+    strncpy(parsed_req -> method, "GET", 7);
+    strncpy(parsed_req -> req_target, "hello world!", 127);
+
+    return parsed_req;
 }
 
-int main() {
+//Returns pointer to HTTP request string on success, NULL pointer on failure 
+char* read_req(int c, char* buf, int bufsize) {  
+    int bytes_read = read(c, buf, bufsize-1);
+    if (bytes_read < 0) {
+        return NULL;
+    }
+    buf[bytes_read] = 0;
+    return buf;
+}
+
+//Returns 0 on success, -1 on failure
+int handle_connection(int s, int c) {
     
+    //Initialize buffer for HTTP request
+    int bufsize = 1024;
+    char buf[bufsize];
+    memset(buf, 0, bufsize);
+
+    //Get client request
+    char* req = read_req(c, buf, bufsize);
+    if (req == NULL) {
+        err_msg = strerror(errno);
+        err_loc = "handle_connection():read_req()";
+        return -1;
+    }
+    printf("%s\n", req);
+
+    //Parse request
+    http_req_T* parsed_req = parse_request(req);
+    printf("Method: %s\n", parsed_req -> method);
+    printf("Target: %s\n", parsed_req -> req_target);
+    
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+
     //Variables
-    int port = 1234;
     int backlog = 2;
-    
+    int port = 1234; //default port
+
+    if (argc >= 2) {
+       port = atoi(argv[1]);
+    } 
+
     //Signal handler
     signal(SIGINT, sigint_handler);
 
