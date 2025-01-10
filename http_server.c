@@ -90,47 +90,94 @@ int connect_to_client(int s) {
 
 //Returns pointer to struct for parsed HTTP request on success, NULL pointer on failure
 http_req_T* parse_request(char* req) {
-    http_req_T* parsed_req;
-    parsed_req = malloc(sizeof(http_req_T));
-    memset(parsed_req, 0, sizeof(http_req_T)); 
 
-    strncpy(parsed_req -> method, "GET", 7);
-    strncpy(parsed_req -> req_target, "hello world!", 127);
+    //Initializing req struct
+    /** http_req_T* parsed_req; */
+    /** parsed_req = malloc(sizeof(http_req_T));    //Allocate memory to return struct */
+    /** memset(parsed_req, 0, sizeof(http_req_T)); //Set memory to null bytes  */
+    
+    //Extracting method from req
+    char* temp;
+    strncpy(temp, req, sizeof(req));
+    char* p = temp;
+    int count = 0;
 
-    return parsed_req;
+    while (p) {
+        if (*p == ' ' || *p == 0) break;
+        printf("%d %c\n", count, *p);
+        count++;
+        p++;
+    }
+
+    if (p == NULL || *p != ' ') {
+        printf("HERE\n");
+        err_msg = "Invalid request format";
+        err_loc = "parse_request(): Extracting method";
+        /** free(parsed_req); */
+        return NULL;
+    }
+
+    *p = 0;
+    
+    /** strncpy(parsed_req -> method, req, METHOD_SIZE-1); */
+
+    //Remove method from req 
+    /** req = ++p;  */
+
+    //Extracting req target
+    /** for (;p != NULL && *p != ' '; p++); //Loop till next whitespace */
+    /**  */
+    /** if (p == NULL || *p != ' ') { */
+    /**     err_msg = "Invalid request format"; */
+    /**     err_loc = "parse_request(): Extracting request target"; */
+    /**    [> free(parsed_req); <] */
+    /**     return NULL; */
+    /** } */
+    /**  */
+    /** *p = '\0'; */
+    /** strncpy(parsed_req -> req_target, req, REQ_TARGET_SIZE-1); */
+    
+    //Remove req target from req 
+    /** req = ++p;  */
+
+    return NULL;
 }
 
 //Returns pointer to HTTP request string on success, NULL pointer on failure 
-char* read_req(int c, char* buf, int bufsize) {  
-    int bytes_read = read(c, buf, bufsize-1);
-    if (bytes_read < 0) {
-        return NULL;
-    }
-    buf[bytes_read] = 0;
-    return buf;
-}
+/** char* read_req(int c, char* buf, int bufsize) {   */
+/**     int bytes_read = read(c, buf, bufsize-1); */
+/**     if (bytes_read < 0) { */
+/**         return NULL; */
+/**     } */
+/**     buf[bytes_read] = 0; */
+/**     return buf; */
+/** } */
 
 //Returns 0 on success, -1 on failure
 int handle_connection(int s, int c) {
     
     //Initialize buffer for HTTP request
-    int bufsize = 1024;
-    char buf[bufsize];
-    memset(buf, 0, bufsize);
+    /** int bufsize = 1024; */
+    /** char buf[bufsize]; */
+    /** memset(buf, 0, bufsize); */
 
     //Get client request
-    char* req = read_req(c, buf, bufsize);
-    if (req == NULL) {
-        err_msg = strerror(errno);
-        err_loc = "handle_connection():read_req()";
-        return -1;
-    }
-    printf("%s\n", req);
+    /** char* req = read_req(c, buf, bufsize); */
+    char req[] = "ERROR";
+    /** if (req == NULL) { */
+    /**     err_msg = strerror(errno); */
+    /**     err_loc = "handle_connection():read_req()"; */
+    /**     return -1; */
+    /** } */
+    printf("'%s'\n", req);
 
     //Parse request
     http_req_T* parsed_req = parse_request(req);
-    printf("Method: %s\n", parsed_req -> method);
-    printf("Target: %s\n", parsed_req -> req_target);
+    if (parsed_req == NULL) {
+        return -1;
+    }
+    /** printf("Method: '%s'\n", parsed_req -> method); */
+    /** printf("Target: '%s'\n", parsed_req -> req_target); */
     
     return 0;
 }
