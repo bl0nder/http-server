@@ -88,97 +88,96 @@ int connect_to_client(int s) {
    return c;
 }
 
-//Returns pointer to struct for parsed HTTP request on success, NULL pointer on failure
+//Returns pointer to struct for parsed HTTP request on success, 0 on failure
 http_req_T* parse_request(char* req) {
 
     //Initializing req struct
-    /** http_req_T* parsed_req; */
-    /** parsed_req = malloc(sizeof(http_req_T));    //Allocate memory to return struct */
-    /** memset(parsed_req, 0, sizeof(http_req_T)); //Set memory to null bytes  */
-    
-    //Extracting method from req
-    char* temp;
-    strncpy(temp, req, sizeof(req));
-    char* p = temp;
-    int count = 0;
+    http_req_T* parsed_req;
+    parsed_req = malloc(sizeof(http_req_T));    //Allocate memory to return struct
+    memset(parsed_req, 0, sizeof(http_req_T)); //Set memory to null bytes
 
-    while (p) {
-        if (*p == ' ' || *p == 0) break;
-        printf("%d %c\n", count, *p);
-        count++;
-        p++;
+    //Extracting method from req
+    char* p;
+    for (p = req; *p != 0 && *p != ' '; p++);
+    
+    //Null pointer
+    if (!p) {
+        err_msg = "Null pointer found";
+        err_loc = "parse_request(): Extracting method";
+        free(parsed_req);
+        return 0;
     }
 
-    if (p == NULL || *p != ' ') {
-        printf("HERE\n");
+    //Did not find whitespace
+    else if (*p != ' ') {
         err_msg = "Invalid request format";
         err_loc = "parse_request(): Extracting method";
-        /** free(parsed_req); */
-        return NULL;
+        free(parsed_req);
+        return 0;
     }
 
     *p = 0;
-    
-    /** strncpy(parsed_req -> method, req, METHOD_SIZE-1); */
-
-    //Remove method from req 
-    /** req = ++p;  */
+    strncpy(parsed_req -> method, req, METHOD_SIZE-1);
 
     //Extracting req target
-    /** for (;p != NULL && *p != ' '; p++); //Loop till next whitespace */
-    /**  */
-    /** if (p == NULL || *p != ' ') { */
-    /**     err_msg = "Invalid request format"; */
-    /**     err_loc = "parse_request(): Extracting request target"; */
-    /**    [> free(parsed_req); <] */
-    /**     return NULL; */
-    /** } */
-    /**  */
-    /** *p = '\0'; */
-    /** strncpy(parsed_req -> req_target, req, REQ_TARGET_SIZE-1); */
-    
-    //Remove req target from req 
-    /** req = ++p;  */
+    for (req = ++p; *p && *p != ' '; p++);
 
-    return NULL;
+    if (!p || *p != ' ') {
+        err_msg = "Invalid request format";
+        err_loc = "parse_request(): Extracting request target";
+        free(parsed_req);
+        return 0;
+    }
+
+    *p = 0;
+    strncpy(parsed_req -> req_target, req, REQ_TARGET_SIZE-1);
+
+    //Remove req target from req
+    req = ++p;
+    return parsed_req;
 }
 
-//Returns pointer to HTTP request string on success, NULL pointer on failure 
-/** char* read_req(int c, char* buf, int bufsize) {   */
-/**     int bytes_read = read(c, buf, bufsize-1); */
-/**     if (bytes_read < 0) { */
-/**         return NULL; */
-/**     } */
-/**     buf[bytes_read] = 0; */
-/**     return buf; */
-/** } */
+//Returns 0 on success, -1 on failure 
+int read_req(int c, char* buf, int bufsize) {
+    int bytes_read = read(c, buf, bufsize-1);
+    if (bytes_read < 0) {
+        return -1;
+    }
+    buf[bytes_read] = 0; //Ensure buffer ends with null byte
+    return 0;
+}
 
 //Returns 0 on success, -1 on failure
 int handle_connection(int s, int c) {
     
     //Initialize buffer for HTTP request
-    /** int bufsize = 1024; */
-    /** char buf[bufsize]; */
-    /** memset(buf, 0, bufsize); */
+    int bufsize = 1024;
+    char buf[bufsize];
+    memset(buf, 0, bufsize);
 
     //Get client request
-    /** char* req = read_req(c, buf, bufsize); */
-    char req[] = "ERROR";
-    /** if (req == NULL) { */
-    /**     err_msg = strerror(errno); */
-    /**     err_loc = "handle_connection():read_req()"; */
-    /**     return -1; */
-    /** } */
-    printf("'%s'\n", req);
-
-    //Parse request
-    http_req_T* parsed_req = parse_request(req);
-    if (parsed_req == NULL) {
+    if(read_req(c, buf, bufsize) < 0) {
+        err_msg = "Empty HTTP request";
+        err_loc = "handle_connection(): Reading client request";
         return -1;
     }
-    /** printf("Method: '%s'\n", parsed_req -> method); */
-    /** printf("Target: '%s'\n", parsed_req -> req_target); */
-    
+    printf("--------------------HTTP Request--------------------\n");
+    printf("'%s'\n", buf);
+
+    //Parse request
+    char* req = malloc(bufsize);
+    strncpy(req, buf, bufsize-1);
+    *(req + bufsize - 1) = 0;
+
+    http_req_T* parsed_req = parse_request(req);
+    if (!parsed_req) {
+        return -1;
+    }
+
+    printf("--------------------Parsed HTTP Request--------------------\n");
+    printf("Method: '%s'\n", parsed_req -> method);
+    printf("Target: '%s'\n", parsed_req -> req_target);
+
     return 0;
 }
 
@@ -214,10 +213,19 @@ int main(int argc, char *argv[]) {
         
         //Create child process to exchange data; parent process (server) keeps looking for connections
         if (fork() == 0) {
-            handle_connection(server, client);
+
+            //Error in handling connection with client
+            if (handle_connection(server, client) < 0) {
+                fprintf(stderr, "[!] %s in %s\n", err_msg, err_loc); 
+                printf("[PID %d] Closing connection with client %d.\n", getpid(), client);
+                close(client);
+                exit(EXIT_FAILURE);
+            }
+
+            //No error
             printf("[PID %d] Closing connection with client %d.\n", getpid(), client);
             close(client);
-            exit(0);
+            exit(EXIT_SUCCESS);
         }
     }
 
