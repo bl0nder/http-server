@@ -100,16 +100,8 @@ http_req_T* parse_request(char* req) {
     char* p;
     for (p = req; *p != 0 && *p != ' '; p++);
     
-    //Null pointer
-    if (!p) {
-        err_msg = "Null pointer found";
-        err_loc = "parse_request(): Extracting method";
-        free(parsed_req);
-        return 0;
-    }
-
     //Did not find whitespace
-    else if (*p != ' ') {
+    if (*p != ' ') {
         err_msg = "Invalid request format";
         err_loc = "parse_request(): Extracting method";
         free(parsed_req);
@@ -117,12 +109,12 @@ http_req_T* parse_request(char* req) {
     }
 
     *p = 0;
-    snprintf(parsed_req -> method, METHOD_SIZE-1, req);
+    snprintf(parsed_req -> method, METHOD_SIZE, req);
 
     //Extracting req target
     for (req = ++p; *p && *p != ' '; p++);
 
-    if (!p || *p != ' ') {
+    if (*p != ' ') {
         err_msg = "Invalid request format";
         err_loc = "parse_request(): Extracting request target";
         free(parsed_req);
@@ -130,10 +122,24 @@ http_req_T* parse_request(char* req) {
     }
 
     *p = 0;
-    snprintf(parsed_req -> req_target, REQ_TARGET_SIZE-1, req);
+    snprintf(parsed_req -> req_target, REQ_TARGET_SIZE, req);
 
-    //Remove req target from req
-    req = ++p;
+    for (req = ++p; *p && *p != '\r'; p++) {
+        if (*p == '\n') {
+            *p = 0;
+        }
+    }
+    
+    if (*p != '\r') {
+        err_msg = "Invalid request format";
+        err_loc = "parse_request(): Extracting protocol";
+        free(parsed_req);
+        return 0;
+    }  
+
+    *p = 0;
+    snprintf(parsed_req -> protocol, PROTOCOL_SIZE, req);
+   
     return parsed_req;
 }
 
@@ -177,6 +183,7 @@ int handle_connection(int s, int c) {
     printf("--------------------Parsed HTTP Request--------------------\n");
     printf("Method: '%s'\n", parsed_req -> method);
     printf("Target: '%s'\n", parsed_req -> req_target);
+    printf("Protocol: '%s'\n", parsed_req -> protocol);
 
     return 0;
 }
