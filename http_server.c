@@ -117,7 +117,7 @@ http_req_T* parse_request(char* req) {
     }
 
     *p = 0;
-    strncpy(parsed_req -> method, req, METHOD_SIZE-1);
+    snprintf(parsed_req -> method, METHOD_SIZE-1, req);
 
     //Extracting req target
     for (req = ++p; *p && *p != ' '; p++);
@@ -130,7 +130,7 @@ http_req_T* parse_request(char* req) {
     }
 
     *p = 0;
-    strncpy(parsed_req -> req_target, req, REQ_TARGET_SIZE-1);
+    snprintf(parsed_req -> req_target, REQ_TARGET_SIZE-1, req);
 
     //Remove req target from req
     req = ++p;
@@ -166,9 +166,9 @@ int handle_connection(int s, int c) {
 
     //Parse request
     char* req = malloc(bufsize);
-    strncpy(req, buf, bufsize-1);
-    *(req + bufsize - 1) = 0;
-
+    memset(req, 0, bufsize);
+    snprintf(req, bufsize-1, buf);
+    
     http_req_T* parsed_req = parse_request(req);
     if (!parsed_req) {
         return -1;
