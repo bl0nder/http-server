@@ -124,13 +124,12 @@ http_req_T* parse_request(char* req) {
     *p = 0;
     snprintf(parsed_req -> req_target, REQ_TARGET_SIZE, req);
 
-    for (req = ++p; *p && *p != '\r'; p++) {
-        if (*p == '\n') {
-            *p = 0;
-        }
+    for (req = ++p; *p && *p != '\n'; p++) {
+        if (*p == '\r') *p = 0;
     }
+
     
-    if (*p != '\r') {
+    if (*p != '\n') {
         err_msg = "Invalid request format";
         err_loc = "parse_request(): Extracting protocol";
         free(parsed_req);
@@ -152,6 +151,79 @@ int read_req(int c, char* buf, int bufsize) {
     buf[bytes_read] = 0; //Ensure buffer ends with null byte
     return 0;
 }
+
+int set_status_line(int c, http_req_T* req) {
+    int status_code;
+    if (!strcmp(req -> method, "GET") && !strcmp(req -> req_target, "/test")) {
+        status_code = 200;
+    }
+    else {
+        status_code = 404;
+    }
+
+    char buf[STATUS_LINE_SIZE];
+    memset(buf, 0, STATUS_LINE_SIZE);
+    snprintf(buf, STATUS_LINE_SIZE, "%s %d OK\n", req -> protocol, status_code);
+
+    if (write(c, buf, strlen(buf)) < 0) {
+        err_msg = "Error in writing status line";
+        err_loc = "set_status_line()";
+        status_code = 500;
+    }
+
+    return status_code;
+}
+
+void set_representation_headers(int c, int status_code) {
+
+    char data[1024];
+    memset(data, 0, 1024);
+
+    char content_type[1024];
+    memset(content_type, 0, 1024);
+    
+    if (status_code == 200) {
+        sprintf(data, "<html><h1> Hello World! </h1></html>");
+        sprintf(content_type, "text/html; charset=utf-8");
+    }
+    else if (status_code == 404) {
+        sprintf(data, "Page not found :(");
+        sprintf(content_type, "text/plain");
+    }
+    else if (status_code == 500) {
+        sprintf(data, "Internal server error");
+        sprintf(content_type, "text/plain");
+    }
+
+    char buf[REP_HEADERS_SIZE];
+    memset(buf, 0, REP_HEADERS_SIZE);
+    snprintf(buf, REP_HEADERS_SIZE, 
+            "content-type: %s\n"
+            "content-length: %d\n"
+            "content-language: en\n"
+            "\n%s\n", 
+            content_type, strlen(data), data);
+
+    if (write(c, data, strlen(data)) < 0) {
+        err_msg = "Error in setting representation header";
+        err_loc = "set_rep_headers()";
+    }
+
+    return;
+    
+}
+
+void send_response(int c, http_req_T* req) {
+    
+    //Set status line
+    int status_code = set_status_line(c, req);
+
+    //Set response headers
+
+    //Set representation headers
+    set_representation_headers(c, status_code);
+}
+
 
 //Returns 0 on success, -1 on failure
 int handle_connection(int s, int c) {
@@ -184,6 +256,9 @@ int handle_connection(int s, int c) {
     printf("Method: '%s'\n", parsed_req -> method);
     printf("Target: '%s'\n", parsed_req -> req_target);
     printf("Protocol: '%s'\n", parsed_req -> protocol);
+    
+    //Send reponse to client
+    send_response(c, parsed_req);
 
     return 0;
 }
@@ -208,7 +283,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     
-    printf("Listening on %s:%d...\n", LISTENING_ADDR, port);
+    printf("[PID %d] Listening on %s:%d...\n", getpid(), LISTENING_ADDR, port);
 
     while(1) {
         client = connect_to_client(server);
@@ -216,7 +291,7 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "[!] %s in %s\n", err_msg, err_loc);
             continue;
         }
-        printf("Successfully connected with client %d.\n", client);
+        printf("[PID %d] Successfully connected with client %d.\n", getpid(), client);
         
         //Create child process to exchange data; parent process (server) keeps looking for connections
         if (fork() == 0) {
@@ -234,6 +309,7 @@ int main(int argc, char *argv[]) {
             close(client);
             exit(EXIT_SUCCESS);
         }
+        close(client);
     }
 
     return -1;

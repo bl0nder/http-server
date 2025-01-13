@@ -5,6 +5,11 @@
 #define REQ_TARGET_SIZE 128
 #define PROTOCOL_SIZE 64
 
+#define RESPONSE_SIZE 1024
+#define STATUS_LINE_SIZE 32
+#define REP_HEADERS_SIZE 128
+
+
 typedef struct {
    char method[METHOD_SIZE];
    char req_target[REQ_TARGET_SIZE];
