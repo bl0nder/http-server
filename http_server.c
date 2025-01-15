@@ -152,7 +152,17 @@ int read_req(int c, char* buf, int bufsize) {
     return 0;
 }
 
-int set_status_line(int c, http_req_T* req) {
+//Returns 0 on success, -1 on failure
+int send_response(int c, http_req_T* req) {
+    
+    //Initialize buffers
+    char buf[RESP_SIZE];
+    memset(buf, 0, RESP_SIZE);    
+
+    char data[RESP_DATA_SIZE];
+    memset(data, 0, RESP_DATA_SIZE);
+
+    //Set status line
     int status_code;
     if (!strcmp(req -> method, "GET") && !strcmp(req -> req_target, "/test")) {
         status_code = 200;
@@ -161,75 +171,61 @@ int set_status_line(int c, http_req_T* req) {
         status_code = 404;
     }
 
-    char buf[STATUS_LINE_SIZE];
-    memset(buf, 0, STATUS_LINE_SIZE);
-    snprintf(buf, STATUS_LINE_SIZE, "%s %d OK\n", req -> protocol, status_code);
-    printf("%s", buf);
+    //Set response headers
+    snprintf(buf, RESP_HEAD_SIZE,
+            "Server: bl0nderServer\n"
+            "Cache-Control: public, max-age=3600\n");
 
-    if (write(c, buf, strlen(buf)) < 0) {
-        err_msg = "Error in writing status line";
-        err_loc = "set_status_line()";
-        status_code = 500;
-    }
-
-    return status_code;
-}
-
-void set_representation_headers(int c, int status_code) {
-
-    char data[1024];
-    memset(data, 0, 1024);
-
-    char content_type[1024];
-    memset(content_type, 0, 1024);
-    
+    //Set representation headers
     if (status_code == 200) {
-        snprintf(data, 1024,
+        snprintf(data, RESP_DATA_SIZE,
                 "<!DOCTYPE html>\n"
                 "<html>\n"
                 "<body><h1> HELLO WORLD! </h1></body>\n"
-                "</html>\n"
-        );
-        snprintf(content_type, 1024, "text/html");
-    }
-    else if (status_code == 404) {
-        sprintf(data, "Page not found :(");
-        sprintf(content_type, "text/plain");
-    }
-    else if (status_code == 500) {
-        sprintf(data, "Internal server error");
-        sprintf(content_type, "text/plain");
+                "</html>\n");
+
+        snprintf(buf, REP_HEAD_SIZE,
+                "%s %d OK\n"
+                "Content-Type: text/html\n"
+                "Content-Length: %d\n"
+                "Content-Language: en\n"
+                "\n%s\n",
+                req -> protocol, status_code, strlen(data), data);
     }
 
-    char buf[REP_HEADERS_SIZE];
-    memset(buf, 0, REP_HEADERS_SIZE);
-    snprintf(buf, REP_HEADERS_SIZE, 
-            "Server: bl0nder_server\n"
-            "Content-Type: %s\n"
-            "Content-Length: %d\n"
-            "Content-Language: en\n"
-            "\n%s\n", 
-            content_type, strlen(data), data);
-    printf("%s", buf);
+    else if (status_code == 404) {
+        snprintf(data, RESP_DATA_SIZE,
+                "Page not found :(\n");
+
+        snprintf(buf, REP_HEAD_SIZE,
+                "%s %d OK\n"
+                "Content-Type: text/plain\n"
+                "Content-Length: %d\n"
+                "Content-Language: en\n"
+                "\n%s\n",
+                req->protocol, status_code, strlen(data), data);
+    }
+
+    else {
+        snprintf(data, RESP_DATA_SIZE,
+                "Internal server error :(\n");
+
+        snprintf(buf, REP_HEAD_SIZE,
+                "%s %d OK\n"
+                "Content-Type: text/plain\n"
+                "Content-Length: %d\n"
+                "Content-Language: en\n"
+                "\n%s\n",
+                req->protocol, status_code, strlen(data), data);
+    }
 
     if (write(c, buf, strlen(buf)) < 0) {
-        err_msg = "Error in setting representation header";
-        err_loc = "set_rep_headers()";
+        err_msg = "Error in sending response to client";
+        err_loc = "send_response()";
+        return -1;
     }
 
-    return;
-    
-}
-
-void send_response(int c, http_req_T* req) {
-    
-    //Set status line
-    int status_code = set_status_line(c, req);
-
-    //Set response headers
-
-    //Set representation headers
-    set_representation_headers(c, status_code);
+    return 0;
 }
 
 
@@ -247,8 +243,8 @@ int handle_connection(int s, int c) {
         err_loc = "handle_connection(): Reading client request";
         return -1;
     }
-    printf("--------------------HTTP Request--------------------\n");
-    printf("'%s'\n", buf);
+    /** printf("--------------------HTTP Request--------------------\n"); */
+    /** printf("'%s'\n", buf); */
 
     //Parse request
     char* req = malloc(bufsize);
@@ -260,13 +256,15 @@ int handle_connection(int s, int c) {
         return -1;
     }
 
-    printf("--------------------Parsed HTTP Request--------------------\n");
-    printf("Method: '%s'\n", parsed_req -> method);
-    printf("Target: '%s'\n", parsed_req -> req_target);
-    printf("Protocol: '%s'\n", parsed_req -> protocol);
+    /** printf("--------------------Parsed HTTP Request--------------------\n"); */
+    /** printf("Method: '%s'\n", parsed_req -> method); */
+    /** printf("Target: '%s'\n", parsed_req -> req_target); */
+    /** printf("Protocol: '%s'\n", parsed_req -> protocol); */
     
     //Send reponse to client
-    send_response(c, parsed_req);
+    if (send_response(c, parsed_req) < 0) {
+        return -1;
+    } 
 
     return 0;
 }
@@ -299,7 +297,7 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "[!] %s in %s\n", err_msg, err_loc);
             continue;
         }
-        printf("[PID %d] Successfully connected with client %d.\n", getpid(), client);
+        printf("[PID %d] Successfully connected with client with file descriptor %d.\n", getpid(), client);
         
         //Create child process to exchange data; parent process (server) keeps looking for connections
         if (fork() == 0) {
@@ -307,13 +305,13 @@ int main(int argc, char *argv[]) {
             //Error in handling connection with client
             if (handle_connection(server, client) < 0) {
                 fprintf(stderr, "[!] %s in %s\n", err_msg, err_loc); 
-                printf("[PID %d] Closing connection with client %d.\n", getpid(), client);
+                printf("[PID %d] Closing connection with client with file descriptor %d.\n", getpid(), client);
                 close(client);
                 exit(EXIT_FAILURE);
             }
-
+                
             //No error
-            printf("[PID %d] Closing connection with client %d.\n", getpid(), client);
+            printf("[PID %d] Closing connection with client with file descriptor %d.\n", getpid(), client);
             close(client);
             exit(EXIT_SUCCESS);
         }
