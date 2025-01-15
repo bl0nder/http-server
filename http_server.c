@@ -164,6 +164,7 @@ int set_status_line(int c, http_req_T* req) {
     char buf[STATUS_LINE_SIZE];
     memset(buf, 0, STATUS_LINE_SIZE);
     snprintf(buf, STATUS_LINE_SIZE, "%s %d OK\n", req -> protocol, status_code);
+    printf("%s", buf);
 
     if (write(c, buf, strlen(buf)) < 0) {
         err_msg = "Error in writing status line";
@@ -183,8 +184,13 @@ void set_representation_headers(int c, int status_code) {
     memset(content_type, 0, 1024);
     
     if (status_code == 200) {
-        sprintf(data, "<html><h1> Hello World! </h1></html>");
-        sprintf(content_type, "text/html; charset=utf-8");
+        snprintf(data, 1024,
+                "<!DOCTYPE html>\n"
+                "<html>\n"
+                "<body><h1> HELLO WORLD! </h1></body>\n"
+                "</html>\n"
+        );
+        snprintf(content_type, 1024, "text/html");
     }
     else if (status_code == 404) {
         sprintf(data, "Page not found :(");
@@ -198,13 +204,15 @@ void set_representation_headers(int c, int status_code) {
     char buf[REP_HEADERS_SIZE];
     memset(buf, 0, REP_HEADERS_SIZE);
     snprintf(buf, REP_HEADERS_SIZE, 
-            "content-type: %s\n"
-            "content-length: %d\n"
-            "content-language: en\n"
+            "Server: bl0nder_server\n"
+            "Content-Type: %s\n"
+            "Content-Length: %d\n"
+            "Content-Language: en\n"
             "\n%s\n", 
             content_type, strlen(data), data);
+    printf("%s", buf);
 
-    if (write(c, data, strlen(data)) < 0) {
+    if (write(c, buf, strlen(buf)) < 0) {
         err_msg = "Error in setting representation header";
         err_loc = "set_rep_headers()";
     }

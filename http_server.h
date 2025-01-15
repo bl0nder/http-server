@@ -7,7 +7,7 @@
 
 #define RESPONSE_SIZE 1024
 #define STATUS_LINE_SIZE 32
-#define REP_HEADERS_SIZE 128
+#define REP_HEADERS_SIZE 2048
 
 
 typedef struct {
