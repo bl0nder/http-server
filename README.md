@@ -1,5 +1,5 @@
 # HTTP Server in C
-Trying to make a webserver in C.
+A simple webserver in C.
 
 Compile: 
 
