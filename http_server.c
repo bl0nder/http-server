@@ -152,75 +152,44 @@ int read_req(int c, char* buf, int bufsize) {
     return 0;
 }
 
+void set_headers(int c, char* buf, const char* protocol, int status_code, const char* content_type, const char* data) {
+   snprintf(buf, RESP_SIZE, 
+           "%s %d OK\n"
+           "Server: bl0nderServer\n"
+           "Cache-Control: public; max-age=3600\n"
+           "Content-Type: %s\n"
+           "Content-Length: %d\n"
+           "Content-Language: en\n"
+           "\n%s\n",
+           protocol, status_code, content_type, strlen(data), data);
+}
+
 //Returns 0 on success, -1 on failure
 int send_response(int c, http_req_T* req) {
     
     //Initialize buffers
     char buf[RESP_SIZE];
     memset(buf, 0, RESP_SIZE);    
-
-    char data[RESP_DATA_SIZE];
-    memset(data, 0, RESP_DATA_SIZE);
-
+    
     //Set status line
     int status_code;
+
+    //Success - 200 
     if (!strcmp(req -> method, "GET") && !strcmp(req -> req_target, "/test")) {
-        status_code = 200;
-    }
-    else {
-        status_code = 404;
-    }
-
-    //Set response headers
-    snprintf(buf, RESP_HEAD_SIZE,
-            "Server: bl0nderServer\n"
-            "Cache-Control: public, max-age=3600\n");
-
-    //Set representation headers
-    if (status_code == 200) {
-        snprintf(data, RESP_DATA_SIZE,
+        set_headers(c, buf, req->protocol, 200, "text/html", 
                 "<!DOCTYPE html>\n"
                 "<html>\n"
                 "<body><h1> HELLO WORLD! </h1></body>\n"
                 "</html>\n");
-
-        snprintf(buf, REP_HEAD_SIZE,
-                "%s %d OK\n"
-                "Content-Type: text/html\n"
-                "Content-Length: %d\n"
-                "Content-Language: en\n"
-                "\n%s\n",
-                req -> protocol, status_code, strlen(data), data);
     }
-
-    else if (status_code == 404) {
-        snprintf(data, RESP_DATA_SIZE,
-                "Page not found :(\n");
-
-        snprintf(buf, REP_HEAD_SIZE,
-                "%s %d OK\n"
-                "Content-Type: text/plain\n"
-                "Content-Length: %d\n"
-                "Content-Language: en\n"
-                "\n%s\n",
-                req->protocol, status_code, strlen(data), data);
-    }
-
+    //Page not found - 404
     else {
-        snprintf(data, RESP_DATA_SIZE,
-                "Internal server error :(\n");
-
-        snprintf(buf, REP_HEAD_SIZE,
-                "%s %d OK\n"
-                "Content-Type: text/plain\n"
-                "Content-Length: %d\n"
-                "Content-Language: en\n"
-                "\n%s\n",
-                req->protocol, status_code, strlen(data), data);
+        set_headers(c, buf, req->protocol, 404, "text/plain", "Page not found :(");
     }
 
+    //Write final response to client fd
     if (write(c, buf, strlen(buf)) < 0) {
-        err_msg = "Error in sending response to client";
+        err_msg = "Error in writing response to client";
         err_loc = "send_response()";
         return -1;
     }
