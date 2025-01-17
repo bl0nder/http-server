@@ -1,4 +1,5 @@
-# HTTP Server in C
+# 🌐 HTTP Server in C
+
 A simple webserver in C.
 
 Compile: 
